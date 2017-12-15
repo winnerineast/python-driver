@@ -120,7 +120,7 @@ class ConnectionTests(SimulacronBase):
             futures.append(future)
 
         for f in futures:
-            f._event.wait()
+            f._lock_event.acquire()
             self.assertIsInstance(f._final_exception, OperationTimedOut)
 
         prime_request(PrimeOptions(then=NO_THEN))
@@ -324,7 +324,7 @@ class ConnectionTests(SimulacronBase):
             futures.append(future)
 
         for f in futures:
-            f._event.wait()
+            f._lock_event.acquire()
             self.assertIsInstance(f._final_exception, OperationTimedOut)
 
         self.assertEqual(listener.hosts_marked_down, [])
