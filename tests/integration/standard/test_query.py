@@ -903,7 +903,7 @@ class LightweightTransactionTests(unittest.TestCase):
         # Make sure test passed
         self.assertTrue(received_timeout)
 
-    def test_was_applied(self):
+    def test_was_applied_batch_stmt(self):
         """
         Test to ensure `:attr:cassandra.cluster.ResultSet.was_applied` works as expected
         with Batchstatements.
@@ -921,8 +921,8 @@ class LightweightTransactionTests(unittest.TestCase):
 
         @test_category query
         """
-        for type in (BatchType.UNLOGGED, BatchType.LOGGED):
-            batch_statement = BatchStatement(type)
+        for batch_type in (BatchType.UNLOGGED, BatchType.LOGGED):
+            batch_statement = BatchStatement(batch_type)
             batch_statement.add_all(["INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 0, 10);",
                                      "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 1, 10);",
                                      "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 2, 10);"], [None] * 3)
@@ -931,7 +931,7 @@ class LightweightTransactionTests(unittest.TestCase):
 
             # Should fail since (0, 0, 10) have already been written
             # The non conditional insert shouldn't be written as well
-            batch_statement = BatchStatement(type)
+            batch_statement = BatchStatement(batch_type)
             batch_statement.add_all(["INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 0, 10) IF NOT EXISTS;",
                                      "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 3, 10) IF NOT EXISTS;",
                                      "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 4, 10);",
@@ -944,7 +944,7 @@ class LightweightTransactionTests(unittest.TestCase):
             self.assertEqual(len(all_rows.current_rows), 3)
 
             # Should fail since (0, 0, 10) have already been written
-            batch_statement = BatchStatement(type)
+            batch_statement = BatchStatement(batch_type)
             batch_statement.add_all(["INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 0, 10) IF NOT EXISTS;",
                                      "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 3, 10) IF NOT EXISTS;",
                                      "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 5, 10) IF NOT EXISTS;"], [None] * 3)
@@ -957,7 +957,7 @@ class LightweightTransactionTests(unittest.TestCase):
             self.assertFalse(result.was_applied)
 
             # Should succeed
-            batch_statement = BatchStatement(type)
+            batch_statement = BatchStatement(batch_type)
             batch_statement.add_all(["INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 3, 10) IF NOT EXISTS;",
                                      "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 4, 10) IF NOT EXISTS;",
                                      "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 5, 10) IF NOT EXISTS;"], [None] * 3)
@@ -970,6 +970,33 @@ class LightweightTransactionTests(unittest.TestCase):
                 self.assertEqual((0, i, 10), (row[0], row[1], row[2]))
 
             self.session.execute("TRUNCATE TABLE test3rf.lwt_clustering")
+
+    def test_was_applied_batch_string(self):
+        batch_statement = BatchStatement(BatchType.LOGGED)
+        batch_statement.add_all(["INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 0, 10);",
+                                 "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 1, 10);",
+                                 "INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 2, 10);"], [None] * 3)
+        self.session.execute(batch_statement)
+
+        batch_str = """
+                    BEGIN unlogged batch
+                        INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 0, 10) IF NOT EXISTS;
+                        INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 1, 10) IF NOT EXISTS;
+                        INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 2, 10) IF NOT EXISTS;
+                    APPLY batch;
+                    """
+        result = self.session.execute(batch_str)
+        self.assertFalse(result.was_applied)
+
+        batch_str = """
+                    BEGIN unlogged batch
+                        INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 3, 10) IF NOT EXISTS;
+                        INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 4, 10) IF NOT EXISTS;
+                        INSERT INTO test3rf.lwt_clustering (k, c, v) VALUES (0, 5, 10) IF NOT EXISTS;
+                    APPLY batch;
+                    """
+        result = self.session.execute(batch_str)
+        self.assertTrue(result.was_applied)
 
 
 class BatchStatementDefaultRoutingKeyTests(unittest.TestCase):

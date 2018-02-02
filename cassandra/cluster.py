@@ -4333,9 +4333,6 @@ class ResultSet(object):
         if isinstance(self.response_future.query, BatchStatement) and self.column_names[0] != "[applied]":
             raise RuntimeError("No LWT were present in the BatchStatement")
 
-        if not isinstance(self.response_future.query, BatchStatement) and len(self.current_rows) != 1:
-            raise RuntimeError("LWT result should have exactly one row. This has %d." % (len(self.current_rows)))
-
         row = self.current_rows[0]
         if isinstance(row, tuple):
             return row[0]
