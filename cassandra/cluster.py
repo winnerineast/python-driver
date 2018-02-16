@@ -4330,8 +4330,12 @@ class ResultSet(object):
         if self.response_future.row_factory not in (named_tuple_factory, dict_factory, tuple_factory):
             raise RuntimeError("Cannot determine LWT result with row factory %s" % (self.response_future.row_factsory,))
 
-        if isinstance(self.response_future.query, BatchStatement) and self.column_names[0] != "[applied]":
+        is_batch_statement = isinstance(self.response_future.query, BatchStatement)
+        if is_batch_statement and self.column_names[0] != "[applied]":
             raise RuntimeError("No LWT were present in the BatchStatement")
+
+        if not is_batch_statement and len(self.current_rows) != 1:
+            raise RuntimeError("LWT result should have exactly one row. This has %d." % (len(self.current_rows)))
 
         row = self.current_rows[0]
         if isinstance(row, tuple):
